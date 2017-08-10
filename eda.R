@@ -1,11 +1,13 @@
+############################################################
+# Zillow Prize: Zillow’s Home Value Prediction (Zestimate) #
+############################################################
+
 # Import libraries
 library(data.table)
 library(dplyr)
 library(ggplot2)
 library(stringr)
-library(DT)
 library(tidyr)
-library(corrplot)
 library(lubridate)
 library(leaflet)
 library(leaflet.extras)
@@ -13,6 +15,7 @@ library(leaflet.extras)
 # Importing Data
 properties <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv", 
               na.strings = "") 
+## convert lat/lon
 properties <- properties %>%
   mutate(latitude = latitude/1e6, longitude = longitude/1e6)
 train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
