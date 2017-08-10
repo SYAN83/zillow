@@ -8,6 +8,7 @@ library(tidyr)
 library(corrplot)
 library(leaflet)
 library(lubridate)
+library(VIM)
 
 # Import data
 prop <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv")
@@ -30,7 +31,8 @@ train %>%
   filter(logerror %between% c(quantile(train$logerror, .005), 
                               quantile(train$logerror, .995))) %>%
   ggplot(aes(x=logerror)) +
-  geom_histogram(aes(y=..density..), color="black", fill="red", bins=50) + 
+  geom_histogram(aes(y=..density..), bins=50,
+                 color="black", fill="red", alpha=.5) + 
   geom_density(alpha = .2, fill = "red")
 
 ## Distribution of absolute logerror (99% percentile)
@@ -71,3 +73,4 @@ prop_train %>%
   ggplot(aes(x=reorder(feature, missing_pct), y=missing_pct)) +
   geom_bar(stat="identity",fill="red", alpha=.5)+
   coord_flip()
+
