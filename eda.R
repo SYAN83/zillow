@@ -72,27 +72,53 @@ train %>%
                                           month=month(transactiondate)))) %>% 
   mutate(abslogerr = abs(logerror)) %>%
   ggplot(aes(x=abslogerr)) +
-  geom_histogram(aes(y=..density..), alpha=.5, fill="blue", bins=30) + 
+  geom_histogram(aes(y=..density..), bins=30,
+                 color="black", fill="blue", alpha=.5) + 
   facet_wrap(~ year_month)
 
 ## logerror geographic distribution
-properties %>% 
-  inner_join(train, by="parcelid") %>%
-  # filter(parcelid %in% train$parcelid) %>%
-  group_by(longitude, latitude) %>%
-  summarise(logerror = mean(logerror)) %>%
-  leaflet() %>%
+leaflet(data = properties %>% 
+          inner_join(train, by="parcelid") %>%
+          group_by(longitude, latitude) %>%
+          summarise(logerror = mean(abs(logerror)))) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   addHeatmap(lng = ~longitude, lat = ~latitude, 
              intensity = .02,
-             blur = 5, radius = 4, 
+             blur = 3, radius = 3, 
              group = "Property heatmap") %>%
   addHeatmap(lng = ~longitude, lat = ~latitude, 
-             intensity = ~logerror,
-             blur = 5, radius = 4, 
+             intensity = ~logerror*.2,
+             blur = 3, radius = 3, 
              group = "logerror heatmap") %>%
   addLayersControl(
     baseGroups = c("Property heatmap", "logerror heatmap"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+# outliers (<0.5% vs. >99.5%)
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addHeatmap(data = train %>% 
+               filter(logerror < quantile(train$logerror, .005)) %>%
+               mutate(logerror = -logerror) %>%
+               inner_join(properties, by="parcelid") %>% 
+               group_by(longitude, latitude) %>%
+               summarise(logerror = mean(logerror)),
+             lng = ~longitude, lat = ~latitude, 
+             intensity = ~logerror,
+             blur = 3, radius = 3,
+             group = "<  0.5%") %>%
+  addHeatmap(data = train %>% 
+               filter(logerror > quantile(train$logerror, .995)) %>%
+               inner_join(properties, by="parcelid") %>% 
+               group_by(longitude, latitude) %>%
+               summarise(logerror = mean(logerror)),
+             lng = ~longitude, lat = ~latitude, 
+             intensity = ~logerror,
+             blur = 3, radius = 3,
+             group = "> 99.5%") %>%
+  addLayersControl(
+    baseGroups = c("<  0.5%", "> 99.5%"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
@@ -105,3 +131,4 @@ properties %>%
   geom_bar(stat="identity",
            color="black", fill="blue", alpha=.5) +
   coord_flip()
+
