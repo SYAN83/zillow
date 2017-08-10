@@ -12,13 +12,11 @@ library(leaflet.extras)
 
 # Importing Data
 properties <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv", 
-              na.strings = "")
+              na.strings = "") 
+properties <- properties %>%
+  mutate(latitude = latitude/1e6, longitude = longitude/1e6)
 train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
                na.strings = "")
-prop_trans <- properties %>% 
-  inner_join(train, by="parcelid") %>%
-  # filter(parcelid %in% train$parcelid) %>%
-  mutate(latitude = latitude/1e6, longitude = longitude/1e6)
 
 # Preliminary Data Analysis
 ## Transaction volumn by date
@@ -62,6 +60,7 @@ train %>%
   geom_errorbar(aes(ymin=meanerr-1.96*stderr, ymax=meanerr+1.96*stderr), 
                 color="blue", width=10) +
   geom_point(size=2, color="blue")
+
 ## Distribution of mean absolute logerror by month (99% percentile)
 train %>% 
   filter(logerror %between% c(quantile(train$logerror, .005),
@@ -73,8 +72,10 @@ train %>%
   geom_histogram(aes(y=..density..), alpha=.5, fill="blue", bins=30) + 
   facet_wrap(~ year_month)
 
-# error distribution
-prop_train %>% 
+## logerror geographic distribution
+properties %>% 
+  inner_join(train, by="parcelid") %>%
+  # filter(parcelid %in% train$parcelid) %>%
   group_by(longitude, latitude) %>%
   summarise(logerror = mean(logerror)) %>%
   leaflet() %>%
@@ -93,7 +94,8 @@ prop_train %>%
   )
 
 ## Missing percentage
-prop_train %>% 
+properties %>% 
+  filter(parcelid %in% train$parcelid) %>%
   summarise_all(funs(sum(is.na(.))/n())) %>%
   gather(key="feature", value="missing_pct") %>%
   ggplot(aes(x=reorder(feature, missing_pct), y=missing_pct)) +
