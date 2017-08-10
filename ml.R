@@ -1,13 +1,13 @@
 library(caret)
 library(doMC)
-registerDoMC(cores = 4)
+registerDoMC(cores = 2)
 
+# Maching Learning
 ## features with 75% or less missing values
 feature <- (prop_train %>% 
   summarise_all(funs(sum(is.na(.))/n())) %>%
   gather(key="feature", value="missing_pct") %>%
-  filter(missing_pct == 0) %>%
-  # filter(missing_pct %between% c(0, .75)) %>%
+  filter(missing_pct < .75) %>%
   select(feature))$feature
 ## train_data <- train inner_join properties 
 train_data <- train %>% 
@@ -50,11 +50,23 @@ trainIndex <- createDataPartition(train_data$logerror,
 subTrain <- train_data[ trainIndex,-1]
 subTest  <- train_data[-trainIndex,-1]
 
+## Define metric - MAE
+maeSummary <- function(data, lev = NULL, model = NULL) {
+  mae_score <- sum(abs(data$obs - data$pred)) / nrow(data)
+  names(mae_score) <- "MAE"
+  mae_score
+}
+
 fitCtrl <- trainControl(method = "cv",
-                        number = 3)
+                        number = 3,
+                        summaryFunction = maeSummary)
 gbmFit1 <- train(logerror ~ .,
                  data = subTrain, 
                  method = "gbm", 
+                 metric = "MAE",
                  trControl = fitCtrl,
-                 verbose = FALSE)
-gbmFit1
+                 verbose = TRUE)
+plot(gbmFit1)
+
+gbmImp <- varImp(gbmFit1, scale = FALSE)
+plot(gbmImp, top = 20)

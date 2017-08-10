@@ -8,24 +8,23 @@ library(tidyr)
 library(corrplot)
 library(leaflet)
 library(lubridate)
-library(VIM)
 
-# Import data
+# Importing Data
 properties <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv", 
               na.strings = "")
 train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
                na.strings = "")
-
 prop_train <- properties %>% filter(parcelid %in% train$parcelid)
 
-# EDA
+# Preliminary Data Analysis
 ## Transaction volumn by date
 train %>% 
   mutate(year_month = make_date(year=year(transactiondate),
                                 month=month(transactiondate))) %>% 
   group_by(year_month) %>% count() %>% 
   ggplot(aes(x=year_month, y=n)) +
-  geom_bar(stat="identity", fill="blue", alpha=.5) +
+  geom_bar(stat="identity", 
+           color="black", fill="blue", alpha=.5) +
   geom_vline(aes(xintercept=as.numeric(as.Date("2016-10-15"))), size=1)
 
 ## Distribution of logerror (99% percentile)
@@ -64,13 +63,14 @@ train %>%
                                           month=month(transactiondate)))) %>% 
   mutate(abslogerr = abs(logerror)) %>%
   ggplot(aes(x=abslogerr)) +
-  geom_histogram(aes(y=..density..), alpha=.5, fill="blue", bins=50) + 
+  geom_histogram(aes(y=..density..), alpha=.5, fill="blue", bins=30) + 
   facet_wrap(~ year_month)
 ## Missing percentage
 prop_train %>% 
   summarise_all(funs(sum(is.na(.))/n())) %>%
   gather(key="feature", value="missing_pct") %>%
   ggplot(aes(x=reorder(feature, missing_pct), y=missing_pct)) +
-  geom_bar(stat="identity",fill="blue", alpha=.5)+
+  geom_bar(stat="identity",
+           color="black", fill="blue", alpha=.5) +
   coord_flip()
 
