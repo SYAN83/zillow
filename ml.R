@@ -1,3 +1,14 @@
+############################################################
+# Zillow Prize: Zillow’s Home Value Prediction (Zestimate) #
+############################################################
+# 1. Data preparation
+# 2. Handling missingness
+# 3. Machine Learning preparation
+# 4. Parameter Tuning with Cross Validation
+# 5. Fitting all training set with Best parameters
+# 6. Make prediction and submission
+
+
 library(caret)
 # library(doMC)
 # registerDoMC(cores = 2)
@@ -81,7 +92,7 @@ train_data <- train_data %>%
 ## impute numerical columns using 0
 train_data[is.na(train_data)] <- 0
 
-# Machine Learning
+# Machine Learning preparation
 ## Data splitting based on the outcome
 set.seed(123)
 trainIndex <- createDataPartition(train_data$logerror, 
