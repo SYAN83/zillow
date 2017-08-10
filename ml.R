@@ -38,9 +38,33 @@ train_data <- train_data[, !nzv$nzv]
 factor_cols_rm <- (data.frame(lapply(train_data[, intersect(names(train_data), factor_cols)], 
                   FUN = function(x) length(unique(x)))) %>%
   gather(key="feature", value="count_unique") %>% 
-  filter(count_unique > 50))$feature
-## remove columns with more than 
+  filter(count_unique > 100))$feature
+## remove columns with more than 100 levels
 train_data <- train_data[, setdiff(names(train_data), factor_cols_rm)]
+## handle missingness
+train_data %>% 
+  summarise_all(funs(sum(is.na(.))/n())) %>%
+  gather(key="feature", value="missing_pct") %>%
+  ggplot(aes(x=reorder(feature, missing_pct), y=missing_pct)) +
+  geom_bar(stat="identity",
+           color="black", fill="blue", alpha=.5) +
+  coord_flip()
+
+mode_ <- function(x) {
+  names(which.max(table(train_data$buildingqualitytypeid)))
+}
+
+train_data %>% mutate(airconditioningtypeid = ifelse(is.na(airconditioningtypeid), 5, airconditioningtypeid),
+                      heatingorsystemtypeid = ifelse(is.na(heatingorsystemtypeid), 13, heatingorsystemtypeid),
+                      buildingqualitytypeid = ifelse(is.na(buildingqualitytypeid), 
+                                                     mode_(buildingqualitytypeid), 
+                                                     buildingqualitytypeid),
+                      unitcnt = ifelse(is.na(unitcnt), mode_(unitcnt), unitcnt),
+                      fullbathcnt = ifelse(is.na(fullbathcnt), mode_(fullbathcnt), fullbathcnt),
+                      calculatedbathnbr = ifelse(is.na(calculatedbathnbr), mode_(calculatedbathnbr), calculatedbathnbr),
+                      yearbuilt = ifelse(is.na(yearbuilt), mode_(yearbuilt), yearbuilt))
+
+train_data[is.na(train_data)] <- 0
 ## Data splitting based on the outcome
 set.seed(123)
 trainIndex <- createDataPartition(train_data$logerror, 
