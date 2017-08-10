@@ -54,15 +54,16 @@ mode_ <- function(x) {
   names(which.max(table(train_data$buildingqualitytypeid)))
 }
 
-train_data %>% mutate(airconditioningtypeid = ifelse(is.na(airconditioningtypeid), 5, airconditioningtypeid),
-                      heatingorsystemtypeid = ifelse(is.na(heatingorsystemtypeid), 13, heatingorsystemtypeid),
-                      buildingqualitytypeid = ifelse(is.na(buildingqualitytypeid), 
-                                                     mode_(buildingqualitytypeid), 
-                                                     buildingqualitytypeid),
-                      unitcnt = ifelse(is.na(unitcnt), mode_(unitcnt), unitcnt),
-                      fullbathcnt = ifelse(is.na(fullbathcnt), mode_(fullbathcnt), fullbathcnt),
-                      calculatedbathnbr = ifelse(is.na(calculatedbathnbr), mode_(calculatedbathnbr), calculatedbathnbr),
-                      yearbuilt = ifelse(is.na(yearbuilt), mode_(yearbuilt), yearbuilt))
+train_data <- train_data %>% 
+  mutate(airconditioningtypeid = ifelse(is.na(airconditioningtypeid), 5, airconditioningtypeid),
+         heatingorsystemtypeid = ifelse(is.na(heatingorsystemtypeid), 13, heatingorsystemtypeid),
+         buildingqualitytypeid = ifelse(is.na(buildingqualitytypeid), 
+                                        mode_(buildingqualitytypeid), 
+                                        buildingqualitytypeid),
+         unitcnt = ifelse(is.na(unitcnt), mode_(unitcnt), unitcnt),
+         fullbathcnt = ifelse(is.na(fullbathcnt), mode_(fullbathcnt), fullbathcnt),
+         calculatedbathnbr = ifelse(is.na(calculatedbathnbr), mode_(calculatedbathnbr), calculatedbathnbr),
+         yearbuilt = ifelse(is.na(yearbuilt), mode_(yearbuilt), yearbuilt))
 
 train_data[is.na(train_data)] <- 0
 ## Data splitting based on the outcome
@@ -80,17 +81,21 @@ maeSummary <- function(data, lev = NULL, model = NULL) {
   names(mae_score) <- "MAE"
   mae_score
 }
-
+## trainControl
 fitCtrl <- trainControl(method = "cv",
                         number = 3,
                         summaryFunction = maeSummary)
-gbmFit1 <- train(logerror ~ .,
-                 data = subTrain, 
-                 method = "gbm", 
-                 metric = "MAE",
-                 trControl = fitCtrl,
-                 verbose = TRUE)
-plot(gbmFit1)
+## parameters
+rfGrid <-  expand.grid(mtry = c(1, 5, 9))
+## model fit
+rfFit <- train(logerror ~ .,
+               data = subTrain, 
+               method = "rf", 
+               preProcess = c("center", "scale"),
+               metric = "MAE",
+               trControl = fitCtrl,
+               verbose = TRUE)
+plot(gbmFit)
 
-gbmImp <- varImp(gbmFit1, scale = FALSE)
+gbmImp <- varImp(gbmFit, scale = FALSE)
 plot(gbmImp, top = 20)

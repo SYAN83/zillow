@@ -6,15 +6,19 @@ library(stringr)
 library(DT)
 library(tidyr)
 library(corrplot)
-library(leaflet)
 library(lubridate)
+library(leaflet)
+library(leaflet.extras)
 
 # Importing Data
 properties <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv", 
               na.strings = "")
 train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
                na.strings = "")
-prop_train <- properties %>% filter(parcelid %in% train$parcelid)
+prop_trans <- properties %>% 
+  inner_join(train, by="parcelid") %>%
+  # filter(parcelid %in% train$parcelid) %>%
+  mutate(latitude = latitude/1e6, longitude = longitude/1e6)
 
 # Preliminary Data Analysis
 ## Transaction volumn by date
@@ -51,9 +55,12 @@ train %>%
   mutate(year_month = make_date(year=year(transactiondate),
                                 month=month(transactiondate))) %>% 
   group_by(year_month) %>%
-  summarise(meanabslogerr = mean(abs(logerror))) %>%
-  ggplot(aes(x=year_month, y=meanabslogerr)) +
-  geom_line(color="blue")+
+  summarise(meanerr = mean(abs(logerror)), 
+            stderr = sqrt(var(abs(logerror))/n())) %>%
+  ggplot(aes(x=year_month, y=meanerr)) +
+  geom_line(color="blue", linetype="dashed") +
+  geom_errorbar(aes(ymin=meanerr-1.96*stderr, ymax=meanerr+1.96*stderr), 
+                color="blue", width=10) +
   geom_point(size=2, color="blue")
 ## Distribution of mean absolute logerror by month (99% percentile)
 train %>% 
@@ -65,6 +72,26 @@ train %>%
   ggplot(aes(x=abslogerr)) +
   geom_histogram(aes(y=..density..), alpha=.5, fill="blue", bins=30) + 
   facet_wrap(~ year_month)
+
+# error distribution
+prop_train %>% 
+  group_by(longitude, latitude) %>%
+  summarise(logerror = mean(logerror)) %>%
+  leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addHeatmap(lng = ~longitude, lat = ~latitude, 
+             intensity = .02,
+             blur = 5, radius = 4, 
+             group = "Property heatmap") %>%
+  addHeatmap(lng = ~longitude, lat = ~latitude, 
+             intensity = ~logerror,
+             blur = 5, radius = 4, 
+             group = "logerror heatmap") %>%
+  addLayersControl(
+    baseGroups = c("Property heatmap", "logerror heatmap"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
 ## Missing percentage
 prop_train %>% 
   summarise_all(funs(sum(is.na(.))/n())) %>%
@@ -73,4 +100,3 @@ prop_train %>%
   geom_bar(stat="identity",
            color="black", fill="blue", alpha=.5) +
   coord_flip()
-
