@@ -14,12 +14,23 @@ library(leaflet.extras)
 
 # Importing Data
 properties <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/properties_2016.csv", 
-              na.strings = "") 
+                    na.strings = "",
+                    colClasses = list(character=c("parcelid", "airconditioningtypeid", "architecturalstyletypeid",
+                                                  "buildingclasstypeid", "decktypeid", "fips", "hashottuborspa",
+                                                  "heatingorsystemtypeid", "pooltypeid10", "pooltypeid2", "pooltypeid7",
+                                                  "propertycountylandusecode", "propertylandusetypeid", 
+                                                  "propertyzoningdesc", "rawcensustractandblock", "regionidcity", 
+                                                  "regionidcounty", "regionidneighborhood", "regionidzip", "storytypeid", 
+                                                  "typeconstructiontypeid", "fireplaceflag", "assessmentyear",
+                                                  "taxdelinquencyflag", "censustractandblock")))
+
+train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
+               na.strings = "",
+               colClasses = list(character=c("parcelid")))
+
 ## convert lat/lon
 properties <- properties %>%
   mutate(latitude = latitude/1e6, longitude = longitude/1e6)
-train <- fread(input = "https://s3.us-east-2.amazonaws.com/aws-emr-dedicated/data/zillow/train_2016_v2.csv",
-               na.strings = "")
 
 # Preliminary Data Analysis
 ## Transaction volumn by date
@@ -70,8 +81,7 @@ train %>%
                               quantile(train$logerror, .995))) %>%
   mutate(year_month = as.factor(make_date(year=year(transactiondate),
                                           month=month(transactiondate)))) %>% 
-  mutate(abslogerr = abs(logerror)) %>%
-  ggplot(aes(x=abslogerr)) +
+  ggplot(aes(x=logerror)) +
   geom_histogram(aes(y=..density..), bins=30,
                  color="black", fill="blue", alpha=.5) + 
   facet_wrap(~ year_month)
@@ -107,7 +117,7 @@ leaflet() %>%
              lng = ~longitude, lat = ~latitude, 
              intensity = ~logerror,
              blur = 3, radius = 3,
-             group = "<  0.5%") %>%
+             group = "Underestimated (< 0.5%)") %>%
   addHeatmap(data = train %>% 
                filter(logerror > quantile(train$logerror, .995)) %>%
                inner_join(properties, by="parcelid") %>% 
@@ -116,9 +126,9 @@ leaflet() %>%
              lng = ~longitude, lat = ~latitude, 
              intensity = ~logerror,
              blur = 3, radius = 3,
-             group = "> 99.5%") %>%
+             group = "Overestimated (> 99.5%)") %>%
   addLayersControl(
-    baseGroups = c("<  0.5%", "> 99.5%"),
+    baseGroups = c("Underestimated (< 0.5%)", "Overestimated (> 99.5%)"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
