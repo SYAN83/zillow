@@ -17,7 +17,7 @@ library(parallel)
 number_of_cores <- detectCores()
 registerDoMC(cores = number_of_cores/2)
 
-# Data preparation
+# 1. Data preparation
 ## features with 75% or less missing values
 feature <- (properties %>% 
               filter(parcelid %in% train$parcelid) %>%
@@ -65,7 +65,7 @@ factor_cols_rm <- (data.frame(lapply(train_data[, intersect(names(train_data), f
 ## remove factor columns with too many levels
 train_data <- train_data[, setdiff(names(train_data), factor_cols_rm)]
 
-# Handling missingness
+# 2. Handling missingness
 ## missing percentage
 train_data %>% 
   summarise_all(funs(sum(is.na(.))/n())) %>%
@@ -76,7 +76,7 @@ train_data %>%
   coord_flip()
 
 mode_ <- function(x) {
-  names(which.max(table(train_data$buildingqualitytypeid)))
+  names(which.max(table(x)))
 }
 
 ## impute factor columns using mode except for:
@@ -106,7 +106,7 @@ train_data <- train_data %>%
 ## impute numerical columns using 0
 train_data[is.na(train_data)] <- 0
 
-# Machine Learning preparation
+# 3. Machine Learning preparation
 ## Data splitting based on the outcome
 set.seed(123)
 trainIndex <- createDataPartition(train_data$logerror, 
@@ -125,7 +125,7 @@ maeSummary <- function(data, lev = NULL, model = NULL) {
   mae_score
 }
 
-## cross validation
+# 4. cross validation
 ## 1. random hyperparameter
 rdmSearch <- trainControl(method = "cv",
                           number = 3,
@@ -149,7 +149,7 @@ gridSearch <- trainControl(method = "cv",
                            summaryFunction = maeSummary)
 
 gbmGrid <-  expand.grid(interaction.depth = c(3,5,7), 
-                        n.trees = c(100,200,400), 
+                        n.trees = c(100,200), 
                         shrinkage = c(.1, .01),
                         n.minobsinnode = 10)
 
@@ -195,3 +195,56 @@ cor(results)
 ##  3. Accidentally dropped crucial features -> try to do imputation/feature engineering before dopping those features
 ##  4. Irreduciable error -> if this is the case then there's nothing we can do
 
+
+# 5. Fitting all training set with Best parameters
+## assume gbmFit2 gives you the best parameter
+gbmFit2$bestTune
+
+fitBestModel <- trainControl(method = "none",
+                             summaryFunction = maeSummary)
+
+gbmFit3 <- train(logerror ~ .,
+                 data = train_data[,-1], 
+                 method = "gbm", 
+                 preProcess = c("center", "scale"),
+                 metric = "MAE",
+                 maximize = FALSE,
+                 trControl = fitBestModel,
+                 tuneGrid = gbmFit2$bestTune,
+                 verbose = TRUE)
+
+predict(gbmFit3, newdata = train_data)
+
+# 6. Making prediction for submission
+test_data <- properties %>% 
+  select(intersect(names(properties), names(train_data))) %>%
+  mutate(airconditioningtypeid = as.factor(ifelse(is.na(airconditioningtypeid), 
+                                                  "5", airconditioningtypeid)),
+         heatingorsystemtypeid = as.factor(ifelse(is.na(heatingorsystemtypeid), 
+                                                  "13", heatingorsystemtypeid)),
+         buildingqualitytypeid = ifelse(is.na(buildingqualitytypeid), 7, buildingqualitytypeid),
+         unitcnt = ifelse(is.na(unitcnt), 1, unitcnt),
+         fullbathcnt = ifelse(is.na(fullbathcnt), 2, fullbathcnt),
+         calculatedbathnbr = ifelse(is.na(calculatedbathnbr), 2, calculatedbathnbr),
+         yearbuilt = ifelse(is.na(yearbuilt), 1955, yearbuilt))
+
+## impute numerical columns using 0
+test_data[is.na(test_data)] <- 0
+
+## Note: the factor levels might not match if you test on the entire dataset. 
+## Then you should convert those values that were not in the training set
+
+
+makePrediction <- function(model, newdata, months, labels) {
+  predictions <- newdata[, "parcelid", drop=FALSE]
+  for(i in 1:length(months)) {
+    newdata$month <- months[i]
+    predictions[, labels[i]] <- predict(model, newdata = newdata)
+  }
+  write.csv(x = predictions, file = "submission.csv", 
+            quote = FALSE, row.names = FALSE)
+  return(predictions)
+}
+
+makePrediction(gbmFit3, newdata = test_data, months = c(10, 11, 12, 22, 23, 24), 
+               labels = c("201610", "201611", "201612", "201710", "201711", "201712"))
